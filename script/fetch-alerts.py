@@ -11,6 +11,7 @@ db_password = os.environ["DB_PASSWORD"]
 db_host = os.environ["DB_HOST"]
 host = os.environ["GH_HOST"]
 gh_token = os.environ["GH_TOKEN"]
+gh_org_env = os.environ["GH_ORG"]
 
 connection = psycopg2.connect(user=db_user,
                                       password=db_password,
@@ -30,11 +31,14 @@ def initialize_db():
                 created_at timestamp,
                 fixed_at timestamp,
                 alert_number int,
-                state varchar(10),
+                state varchar(30),
                 dismissed_at timestamp,
                 dismiss_reason varchar(300),
                 dismisser varchar(30),
                 vuln_ghsa_id varchar(30),
+                vuln_cvss real,
+                vuln_identifier_type varchar(15),
+                vuln_identifier_value varchar(30),
                 vuln_severity varchar(15),
                 vuln_summary text,
                 vuln_package varchar(100),
@@ -70,6 +74,24 @@ def insert_into_db(alert, gh_org, gh_repo):
             dismisser = alert.get("dismisser").get("login")
         
         vuln_ghsa_id = alert.get("securityVulnerability").get("advisory").get("ghsaId")
+
+
+        vuln_cvss = None
+        if alert.get("securityVulnerability").get("advisory").get("cvss") is not None:
+            print("CVSS--------------------- if")
+            vuln_cvss = alert.get("securityVulnerability").get("advisory").get("cvss").get("score")
+
+        vuln_identifier_type = None
+        vuln_identifier_value = None
+        if alert.get("securityVulnerability").get("advisory").get("identifiers"):
+            print("identifier ------------------------ if")
+            for identifier in alert.get("securityVulnerability").get("advisory").get("identifiers"):
+                print(identifier)
+                if identifier.get("type") == "CVE":
+                   vuln_identifier_type = identifier.get("type")
+                   print(vuln_identifier_type)
+                   vuln_identifier_value = identifier.get("value")
+
         vuln_severity = alert.get("securityVulnerability").get("severity")
         vuln_summary = alert.get("securityVulnerability").get("advisory").get("summary")
         vuln_package = alert.get("securityVulnerability").get("package").get("name")
@@ -109,36 +131,39 @@ def insert_into_db(alert, gh_org, gh_repo):
                 dismiss_reason,
                 dismisser,
                 vuln_ghsa_id,
+
+                vuln_cvss,
+                vuln_identifier_type,
+                vuln_identifier_value,
+
                 vuln_severity,
                 vuln_summary,
                 vuln_package,
                 fix_pr_number,
                 fix_pr_title,
                 fix_merged_at
-            ) values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+            ) values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
         """
 
         db_values = (snapshot_timestamp, repo, org, created_at, fixed_at, alert_number, state, dismissed_at, dismiss_reason,
-                         dismisser, vuln_ghsa_id, vuln_severity, vuln_summary, vuln_package, fix_pr_number, fix_pr_title, fix_merged_at)
+                         dismisser, vuln_ghsa_id, vuln_cvss, vuln_identifier_type, vuln_identifier_value, vuln_severity, vuln_summary, vuln_package, fix_pr_number, fix_pr_title, fix_merged_at)
         cursor = connection.cursor()
         cursor.execute(insert_query, db_values)
         connection.commit()
     except (Exception, psycopg2.Error) as error:
         print("Error when inserting into table: ", error)
         print("DEBUG: ", str(alert))
+        quit()
 
 def get_repos(host, gh_token):
-    g = Github(base_url=host + "/api/v3", login_or_token=gh_token)
+    g = Github(base_url=host, login_or_token=gh_token)
     repos = []
 
-    # Add orgs that you need to ignore
-    blacklisted_orgs = ['test-org']
-
-    for org in g.get_organizations():
-        if org.login not in blacklisted_orgs:
-            for repo in org.get_repos():
-                if not repo.archived:
-                    repos.append(repo.full_name)
+    org = g.get_organization(gh_org_env)
+    for repo in org.get_repos():
+        if not repo.archived:
+            repos.append(repo.full_name)
+            print("Repo: " + str(repo.full_name))
 
     return repos
 
@@ -151,52 +176,65 @@ def get_alerts(host, gh_token, gh_org, gh_repo):
     }
 
     # Select your transport with a defined url endpoint
-    transport = AIOHTTPTransport(url=host+"/api/graphql", headers=headers)
+    transport = AIOHTTPTransport(url=host+"/graphql", headers=headers)
     # Create a GraphQL client using the defined transport
-    client = Client(transport=transport, fetch_schema_from_transport=True)
+    client = Client(transport=transport, fetch_schema_from_transport=False)
 
-    # Provide a GraphQL query
+    # Provide a GraphQL query - first 100 throws erros from time to time*
     query = gql(
-        """
-        {
+    """
+    {
         repository(name: "%s", owner: "%s") {
             vulnerabilityAlerts(first:100) {
-            pageInfo {
-                startCursor
-                hasNextPage
-                endCursor
-            }
-            nodes {
-                createdAt
-                fixedAt
-                number
-                dependabotUpdate {
-                pullRequest {
+                pageInfo {
+                    startCursor
+                    hasNextPage
+                    endCursor
+                }
+                nodes {
+                    createdAt
+                    fixedAt
                     number
-                    title
-                    mergedAt
-                }
-                }
-                state
-                dismissedAt
-                dismisser {
-                    login
-                }
-                dismissReason
-                securityVulnerability {
-                severity
-                advisory {
-                    ghsaId
-                    summary
-                }
-                package {
-                    name
-                }
+                    dependabotUpdate {
+                    pullRequest {
+                        number
+                        title
+                        mergedAt
+                    }
+                    }
+                    state
+                    dismissedAt
+                    dismisser {
+                        login
+                    }
+                    dismissReason
+                    securityVulnerability {
+                    severity
+                    advisory {
+                        cvss{
+                            score
+                        }
+                        ghsaId
+                        identifiers{
+                            type
+                            value
+                        }
+                        summary
+                    }
+                    package {
+                        name
+                    }
+                    }
                 }
             }
-            }
         }
+        rateLimit {
+            limit
+            cost
+            remaining
+            resetAt
         }
+    }
 
     """ % (gh_repo, gh_org)
     )
@@ -205,8 +243,9 @@ def get_alerts(host, gh_token, gh_org, gh_repo):
         # Execute the query on the transport
         result = client.execute(query)
 
+        print(json.dumps(result.get("rateLimit")))
+
         for alert in result.get("repository").get("vulnerabilityAlerts").get("nodes"):
-            print(json.dumps(alert))
             insert_into_db(alert, gh_org, gh_repo)
 
         nextpage = result.get("repository").get(
@@ -217,46 +256,59 @@ def get_alerts(host, gh_token, gh_org, gh_repo):
         endcursor = result.get("repository").get(
             "vulnerabilityAlerts").get("pageInfo").get("endCursor")
         query = gql(
-            """
+        """
         {
         repository(name: "%s", owner: "%s") {
             vulnerabilityAlerts(first:100, after:"%s") {
-            pageInfo {
-                startCursor
-                hasNextPage
-                endCursor
-            }
-            nodes {
-                createdAt
-                fixedAt
-                number
-                dependabotUpdate {
-                pullRequest {
+                pageInfo {
+                    startCursor
+                    hasNextPage
+                    endCursor
+                }
+                nodes {
+                    createdAt
+                    fixedAt
                     number
-                    title
-                    mergedAt
-                }
-                }
-                state
-                dismissedAt
-                dismisser {
-                    login
-                }
-                dismissReason
-                securityVulnerability {
-                severity
-                advisory {
-                    ghsaId
-                    summary
-                }
-                package {
-                    name
-                }
+                    dependabotUpdate {
+                    pullRequest {
+                        number
+                        title
+                        mergedAt
+                    }
+                    }
+                    state
+                    dismissedAt
+                    dismisser {
+                        login
+                    }
+                    dismissReason
+                    securityVulnerability {
+                    severity
+                    advisory {
+                        cvss{
+                            score
+                        }
+                        ghsaId
+                        identifiers{
+                            type
+                            value
+                        }
+                        summary
+                    }
+                    package {
+                        name
+                    }
+                    }
                 }
             }
-            }
         }
+        rateLimit {
+            limit
+            cost
+            remaining
+            resetAt
         }
+    }
     """ % (gh_repo, gh_org, endcursor)
         )
 

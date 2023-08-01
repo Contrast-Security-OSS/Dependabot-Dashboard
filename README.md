@@ -1,4 +1,4 @@
-## Dependabot Dashboard
+# Dependabot Dashboard
 
 A simple Python script to dump Dependabot alerts from all GitHub orgs and repos to PostgresDB.
 
@@ -8,7 +8,13 @@ Requires the following env variables to execute:
 - `DB_HOST`
 - `GH_HOST`
 - `GH_TOKEN` (needs full repo access to query internal repos)
+- `GH_ORG`
 
 The script needs to be run everyday to visualize metrics over time.
 
-**Note:** The script is tested on GitHub Enterprise Server. It's not tested on public GitHub.com or GitHub Enterprise Cloud.
+**Note:** This fork has been adapted to work on GitHub.com and GitHub Enterprise Cloud. 
+
+### Fork changes
+- Support Github cloud instead of Github server
+- Added CVE details including CVSS score
+- Added `GH_ORG` env variable to query
