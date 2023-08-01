@@ -15,6 +15,6 @@ The script needs to be run everyday to visualize metrics over time.
 **Note:** This fork has been adapted to work on GitHub.com and GitHub Enterprise Cloud. 
 
 ### Fork changes
-- Support Github cloud instead of Github server
+- Support Github cloud instead of GitHub Enterprise Server
 - Added CVE details including CVSS score
-- Added `GH_ORG` env variable to query
+- Added `GH_ORG` env variable to query a specific organization
