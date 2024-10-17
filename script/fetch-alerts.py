@@ -1,7 +1,7 @@
 from gql import gql, Client
 from gql.transport.aiohttp import AIOHTTPTransport
 import json
-from github import Github
+from github import Github, Auth
 import psycopg2
 from datetime import date, datetime
 import os
@@ -9,7 +9,6 @@ import os
 db_user = os.environ["DB_USER"]
 db_password = os.environ["DB_PASSWORD"]
 db_host = os.environ["DB_HOST"]
-host = os.environ["GH_HOST"]
 gh_token = os.environ["GH_TOKEN"]
 gh_org_env = os.environ["GH_ORG"]
 
@@ -78,18 +77,14 @@ def insert_into_db(alert, gh_org, gh_repo):
 
         vuln_cvss = None
         if alert.get("securityVulnerability").get("advisory").get("cvss") is not None:
-            print("CVSS--------------------- if")
             vuln_cvss = alert.get("securityVulnerability").get("advisory").get("cvss").get("score")
 
         vuln_identifier_type = None
         vuln_identifier_value = None
         if alert.get("securityVulnerability").get("advisory").get("identifiers"):
-            print("identifier ------------------------ if")
             for identifier in alert.get("securityVulnerability").get("advisory").get("identifiers"):
-                print(identifier)
                 if identifier.get("type") == "CVE":
                    vuln_identifier_type = identifier.get("type")
-                   print(vuln_identifier_type)
                    vuln_identifier_value = identifier.get("value")
 
         vuln_severity = alert.get("securityVulnerability").get("severity")
@@ -155,8 +150,9 @@ def insert_into_db(alert, gh_org, gh_repo):
         print("DEBUG: ", str(alert))
         quit()
 
-def get_repos(host, gh_token):
-    g = Github(base_url=host, login_or_token=gh_token)
+def get_repos(gh_token):
+    auth = Auth.Token(gh_token)
+    g = Github(auth=auth)
     repos = []
 
     org = g.get_organization(gh_org_env)
@@ -168,7 +164,7 @@ def get_repos(host, gh_token):
     return repos
 
 
-def get_alerts(host, gh_token, gh_org, gh_repo):
+def get_alerts(gh_token, gh_org, gh_repo):
     # Handle pagination
     headers = {
         "Authorization": "Bearer " + gh_token,
@@ -176,7 +172,7 @@ def get_alerts(host, gh_token, gh_org, gh_repo):
     }
 
     # Select your transport with a defined url endpoint
-    transport = AIOHTTPTransport(url=host+"/graphql", headers=headers)
+    transport = AIOHTTPTransport("https://api.github.com/graphql", headers=headers)
     # Create a GraphQL client using the defined transport
     client = Client(transport=transport, fetch_schema_from_transport=False)
 
@@ -316,11 +312,11 @@ def get_alerts(host, gh_token, gh_org, gh_repo):
 
 
 initialize_db()
-repos = get_repos(host=host, gh_token=gh_token)
+repos = get_repos(gh_token=gh_token)
 
 for repo in repos:
     print("[+] Analyzing " + repo)
     org = repo.split("/")[0]
     repo_name = repo.split("/")[1]
 
-    get_alerts(host, gh_token, org, repo_name)
+    get_alerts(gh_token, org, repo_name)
