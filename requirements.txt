@@ -4,12 +4,12 @@ async-timeout==4.0.3
 attrs==24.2.0
 backoff==2.2.1
 botocore==1.38.13
-certifi==2024.8.30
+certifi==2025.4.26
 cffi==1.17.1
-charset-normalizer==2.1.1
+charset-normalizer==3.4.2
 Deprecated==1.2.14
 frozenlist==1.4.1
-gql==3.5.0
+gql==3.5.3
 graphql-core==3.2.6
 idna==3.10
 jmespath==1.0.1
@@ -17,7 +17,7 @@ multidict==6.4.3
 psycopg2-binary==2.9.10
 pycparser==2.22
 PyGithub==2.6.1
-PyJWT==2.9.0
+PyJWT==2.10.1
 PyNaCl==1.5.0
 python-dateutil==2.9.0
 requests==2.32.3
@@ -25,5 +25,5 @@ requests-toolbelt==1.0.0
 six==1.16.0
 urllib3==2.2.3
 websockets==13.1
-wrapt==1.16.0
-yarl==1.11.1
+wrapt==1.17.2
+yarl==1.13.0
