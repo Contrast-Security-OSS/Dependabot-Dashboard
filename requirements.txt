@@ -13,7 +13,7 @@ gql==3.5.3
 graphql-core==3.2.6
 idna==3.10
 jmespath==1.0.1
-multidict==6.4.3
+multidict==6.6.3
 psycopg2-binary==2.9.10
 pycparser==2.22
 PyGithub==2.6.1
